@@ -15,12 +15,25 @@ from analysis import calculate_autocorrelation, calculate_msd, compute_msd_dacf_
 
 
 def reduced_chi_squared(obs, sim, err=None):
-    """Compute reduced chi-squared between observed and simulated arrays.
+    """
+    Compute reduced chi-squared statistic between observed and simulated arrays.
 
-    obs, sim: 1D arrays of same length. err: observational uncertainties (same length).
-    If err is None, use sqrt(obs) or small floor to avoid division by zero.
+    This measures the goodness-of-fit between simulation and experimental data,
+    weighted by observational uncertainties. For DACF/MSD comparisons, we use
+    the standard error of the mean (SEM) as it is statistically rigorous for averaged data.
 
-    For our experiment and metric (DACF/MSD), we use the standard error of the mean (SEM), since its statistically rigorous for averaged data.
+    Parameters:
+    -----------
+    obs : array-like
+        Observed (experimental) values
+    sim : array-like
+        Simulated values (same length as obs)
+    err : array-like, optional
+        Observational uncertainties (same length). If None, uses sqrt(obs) as heuristic.
+
+    Returns:
+    --------
+    float : Reduced chi-squared value (chi^2 / degrees_of_freedom)
     """
     obs = np.asarray(obs)
     sim = np.asarray(sim)
@@ -34,7 +47,39 @@ def reduced_chi_squared(obs, sim, err=None):
 
 def fit_grid(exp_df, simulation_mode, param_grid, chi_weight=0.5, velocity_dist_params=None, vonmises_params=None, n_steps=100, n_cells=30, seed=None):
     """
-    Grid search using per-position experimental statistics.
+    Perform grid search to find best-fit simulation parameters against experimental data.
+
+    This function systematically tests all combinations of parameters in the provided grid,
+    running short simulations for each and comparing DACF and MSD to experimental data
+    using reduced chi-squared statistics.
+
+    Parameters:
+    -----------
+    exp_df : DataFrame
+        Experimental trajectory data with columns: track_id, step, t, x, y, v_x, v_y, file
+    simulation_mode : str
+        Movement mode for simulation (e.g., 'persistent', 'exp_memory')
+    param_grid : dict
+        Dictionary mapping parameter names to lists of values to test
+        e.g., {'persistence': [0.0, 0.5, 0.9], 'chemotaxis_strength': [0.0, 0.3]}
+    chi_weight : float
+        Weight for combining chi-squared values: score = chi_weight*chi2_dacf + (1-chi_weight)*chi2_msd
+    velocity_dist_params : dict, optional
+        Log-normal velocity parameters: {'shape': , 'loc': , 'scale': }
+    vonmises_params : dict, optional
+        Von Mises mixture parameters: {'kappa1': , 'kappa2': , 'W1': }
+    n_steps : int
+        Number of simulation steps per trial (default: 100)
+    n_cells : int
+        Number of cells to simulate (default: 30)
+    seed : int, optional
+        Random seed for reproducibility
+
+    Returns:
+    --------
+    tuple : (best_params_dict, results_dataframe)
+        - best_params_dict: Dictionary of best-fit parameters with scores
+        - results_dataframe: DataFrame with all tested combinations sorted by score
     """
     if seed is not None:
         np.random.seed(seed)

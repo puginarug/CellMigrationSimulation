@@ -8,7 +8,13 @@ from scipy.stats import lognorm
 
 
 class Cell:
-    """Simple cell agent."""
+    """
+    A cell agent that moves in a 2D environment with chemotaxis and cell-cell interactions.
+
+    The cell maintains its position, orientation (theta), and movement history. It can sense
+    chemical gradients, respond to nearby cells through repulsion, and move according to a
+    log-normal velocity distribution.
+    """
     
     def __init__(self, cell_id, x, y, velocity_params):
         """

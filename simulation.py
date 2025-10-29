@@ -9,7 +9,13 @@ from cell import Cell
 from stadium import VerticalStadium
 
 class Simulation:
-    """Simple cell migration simulation."""
+    """
+    Cell migration simulation in a stadium-shaped domain with chemotactic gradient.
+
+    This class orchestrates the simulation of multiple cells moving in a vertical stadium
+    with various behavioral modes including random walk, persistent random walk, biased
+    persistent walk, and memory-based movement with von Mises distributed turning angles.
+    """
     
     def __init__(self, 
                  n_cells=30,
@@ -53,9 +59,20 @@ class Simulation:
         velocity_params : dict
             Parameters for velocity distribution: {'shape': , 'loc': , 'scale': }
         persistence : float
-            Persistence parameter for persistent random walk (ignored if mode uses memory)
+            Persistence parameter for persistent random walk (0-1), ignored if mode uses memory
         starting_positions : str
             Initial positions distribution for cells: 'perimeter' or 'uniform'
+        mode : str
+            Movement mode: 'random', 'persistent', 'biased_persistent',
+            'uniform_memory', 'exp_memory', or 'power_memory'
+        memory_window : int, optional
+            Number of past time steps to consider for memory-based modes
+        memory_exp_lambda : float
+            Exponential decay rate for 'exp_memory' mode (default: 0.1)
+        memory_power_alpha : float
+            Power law exponent for 'power_memory' mode (default: 0.5)
+        vonmises_params : dict, optional
+            Parameters for von Mises mixture: {'kappa1': , 'kappa2': , 'W1': }
         """
         self.n_cells = n_cells
         self.chemotaxis_strength = chemotaxis_strength
@@ -97,7 +114,17 @@ class Simulation:
         self.time_step = time_step
         
     def step(self):
-        """Perform one simulation step."""
+        """
+        Perform one simulation step for all cells.
+
+        Each step involves:
+        1. Determining angle change based on movement mode
+        2. Calculating chemotaxis bias from gradient field
+        3. Calculating repulsion from nearby cells
+        4. Updating cell position with weighted combination of factors
+        5. Applying boundary conditions
+        6. Recording new position in history
+        """
         
         for cell in self.cells:
             # 1. Get angle change according to selected mode

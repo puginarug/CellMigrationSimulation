@@ -9,7 +9,13 @@ from matplotlib.patches import Polygon
 
 
 class VerticalStadium:
-    """Vertical stadium-shaped domain with line source gradient."""
+    """
+    Vertical stadium-shaped domain (rectangle with semicircular caps) with line source gradient.
+
+    The stadium consists of two vertical straight walls of length L connected by two semicircles
+    of radius R. A vertical line source at the center creates a chemotactic gradient field that
+    decays with distance from the source according to a fitted polynomial.
+    """
     
     def __init__(self, L=60, R=20, center=(0, 0), source_length=40):
         """
@@ -39,7 +45,18 @@ class VerticalStadium:
         self.gradient_decay = 0.05  # Decay rate from line source
         
     def is_inside(self, x, y):
-        """Check if point (x, y) is inside the stadium."""
+        """
+        Check if point (x, y) is inside the stadium boundary.
+
+        Parameters:
+        -----------
+        x, y : float
+            Coordinates to check
+
+        Returns:
+        --------
+        bool : True if point is inside stadium, False otherwise
+        """
         cx, cy = self.center
         
         # Check if in straight wall region

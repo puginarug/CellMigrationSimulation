@@ -7,19 +7,31 @@ from scipy.optimize import minimize
 
 def calculate_autocorrelation(df, max_lag=None, directional=True):
     """
-    Calculate velocity autocorrelation function.
-    
+    Calculate velocity autocorrelation function (VACF or DACF).
+
+    Computes the temporal correlation of velocity vectors across all tracks. For DACF,
+    velocities are normalized to measure directional persistence. For VACF, raw velocity
+    dot products are used to measure speed and direction correlation.
+
     Parameters:
     -----------
     df : DataFrame
-        Trajectory data with columns: track_id, step, v_x, v_y
+        Trajectory data with columns: track_id, step, t, v_x, v_y
+    max_lag : int, optional
+        Maximum time lag to compute (default: all available lags)
     directional : bool
-        If True, compute directional autocorrelation (DACF)
-        If False, compute velocity autocorrelation (VACF)
-    
+        If True, compute directional autocorrelation (DACF) - normalized by magnitudes
+        If False, compute velocity autocorrelation (VACF) - unnormalized
+
     Returns:
     --------
-    DataFrame with autocorrelation values
+    DataFrame with columns:
+        - dacf/vacf: Mean autocorrelation at each lag
+        - dacf_std/vacf_std: Standard deviation
+        - dacf_sem/vacf_sem: Standard error of the mean
+        - n: Number of valid samples per lag
+        - lag: Time lag (steps)
+        - dt: Time lag (minutes)
     """
     # Pivot to wide format
     df_vx = df.pivot(index='track_id', columns='step', values='v_x')
@@ -49,23 +61,35 @@ def calculate_autocorrelation(df, max_lag=None, directional=True):
             valid_mask = (mag1 > 0) & (mag2 > 0)
             norm_dot = np.full(dot.shape, np.nan)
             norm_dot[valid_mask] = dot[valid_mask] / (mag1[valid_mask] * mag2[valid_mask])
-            
+
             # Count valid samples
             n_valid = np.sum(~np.isnan(norm_dot))
             n_samples[dt] = n_valid
-            
-            acorr_vals[dt] = np.nanmean(norm_dot)
-            acorr_stds[dt] = np.nanstd(norm_dot)
-            acorr_sems[dt] = acorr_stds[dt] / np.sqrt(n_valid) if n_valid > 0 else np.nan
+
+            # Only compute statistics if there are valid samples
+            if n_valid > 0:
+                acorr_vals[dt] = np.nanmean(norm_dot)
+                acorr_stds[dt] = np.nanstd(norm_dot)
+                acorr_sems[dt] = acorr_stds[dt] / np.sqrt(n_valid)
+            else:
+                acorr_vals[dt] = np.nan
+                acorr_stds[dt] = np.nan
+                acorr_sems[dt] = np.nan
             column_name = 'dacf'
         else:
             # VACF without normalization
             n_valid = np.sum(~np.isnan(dot))
             n_samples[dt] = n_valid
-            
-            acorr_vals[dt] = np.nanmean(dot)
-            acorr_stds[dt] = np.nanstd(dot)
-            acorr_sems[dt] = acorr_stds[dt] / np.sqrt(n_valid) if n_valid > 0 else np.nan
+
+            # Only compute statistics if there are valid samples
+            if n_valid > 0:
+                acorr_vals[dt] = np.nanmean(dot)
+                acorr_stds[dt] = np.nanstd(dot)
+                acorr_sems[dt] = acorr_stds[dt] / np.sqrt(n_valid)
+            else:
+                acorr_vals[dt] = np.nan
+                acorr_stds[dt] = np.nan
+                acorr_sems[dt] = np.nan
             column_name = 'vacf'
 
     # Only keep up to max_lag if specified
@@ -97,18 +121,32 @@ def calculate_autocorrelation(df, max_lag=None, directional=True):
 
 def calculate_msd(df, x_col='x', y_col='y', max_lag=None):
     """
-    Calculate Mean Squared Displacement.
-    
+    Calculate Mean Squared Displacement (MSD) for all tracks.
+
+    MSD measures the average squared distance traveled by cells as a function of time lag.
+    The scaling of MSD with time indicates the type of motion: ballistic (t²),
+    diffusive (t), or subdiffusive (t^α where α<1).
+
     Parameters:
     -----------
     df : DataFrame
-        Trajectory data with columns: track_id, step, x, y
+        Trajectory data with columns: track_id, step, t, x, y
+    x_col : str
+        Column name for x coordinates (default: 'x')
+    y_col : str
+        Column name for y coordinates (default: 'y')
     max_lag : int, optional
-        Maximum lag to compute MSD for
-    
+        Maximum lag to compute MSD for (default: all available lags)
+
     Returns:
     --------
-    DataFrame with MSD values
+    DataFrame with columns:
+        - msd: Mean squared displacement at each lag
+        - msd_std: Standard deviation
+        - msd_sem: Standard error of the mean
+        - n: Number of displacement samples per lag
+        - lag: Time lag (steps)
+        - dt: Time lag (minutes)
     """
 
     tracks = df.groupby('track_id')
@@ -276,8 +314,29 @@ def compare_simulations(sim_df, exp_df=None, max_lag=30):
 
 def compute_msd_dacf_per_movie(df, x_col='x', y_col='y', max_lag=None):
     """
-    Compute MSD and DACF per movie, then aggregate across movies with n_obs weighting.
-    The input DataFrame must have a 'file' column representing the movie ID.
+    Compute MSD and DACF per movie, then aggregate across movies with weighted statistics.
+
+    This function first computes MSD and DACF for each movie separately, then aggregates
+    results using weighted averaging where weights are the number of observations per lag.
+    This approach accounts for position-to-position variability in experimental data.
+
+    Parameters:
+    -----------
+    df : DataFrame
+        Trajectory data with columns: track_id, step, t, x, y, v_x, v_y, file
+        The 'file' column identifies different movies/positions
+    x_col : str
+        Column name for x coordinates (default: 'x')
+    y_col : str
+        Column name for y coordinates (default: 'y')
+    max_lag : int, optional
+        Maximum lag to compute (default: all available lags)
+
+    Returns:
+    --------
+    tuple : (msd_summary, dacf_summary)
+        - msd_summary: DataFrame with weighted mean MSD across movies
+        - dacf_summary: DataFrame with weighted mean DACF across movies
     """
 
     msd_results = []
@@ -363,8 +422,29 @@ def compute_msd_dacf_per_movie(df, x_col='x', y_col='y', max_lag=None):
 
 def compute_turning_angles(df, track_col='track_id', x_col='x_microns', y_col='y_microns', step_col='step', lag=1):
     """
-    Compute signed turning angles (radians) between consecutive movement vectors for each track.
-    Angles are in range (-pi, pi), where positive means counterclockwise turn.
+    Compute signed turning angles between consecutive movement vectors for each track.
+
+    Turning angles measure the change in direction between successive displacement vectors,
+    providing insight into the persistence and turning behavior of cell migration.
+
+    Parameters:
+    -----------
+    df : DataFrame
+        Trajectory data with position columns
+    track_col : str
+        Column name for track identifiers (default: 'track_id')
+    x_col : str
+        Column name for x coordinates (default: 'x_microns')
+    y_col : str
+        Column name for y coordinates (default: 'y_microns')
+    step_col : str
+        Column name for time steps (default: 'step')
+    lag : int
+        Time lag between vectors to compare (default: 1)
+
+    Returns:
+    --------
+    list : Turning angles in radians, range (-π, π), positive = counterclockwise
     """
     if not {track_col, x_col, y_col, step_col}.issubset(df.columns):
         raise ValueError(f"Input DataFrame must contain columns: {track_col}, {x_col}, {y_col}, {step_col}")
@@ -401,9 +481,25 @@ def compute_turning_angles(df, track_col='track_id', x_col='x_microns', y_col='y
 
 def von_mises_mixture_no_amplitudes(x, W1, kappa1, kappa2):
     """
-    Mixture of two von Mises distributions centered at 0 without amplitude parameters.
-    W1: weight of the first component (0..1)
-    kappa1, kappa2: concentration parameters (>=0)
+    Evaluate mixture of two von Mises distributions centered at 0.
+
+    Von Mises distributions are circular analogs of normal distributions, commonly used
+    to model angular data like turning angles.
+
+    Parameters:
+    -----------
+    x : array-like
+        Angles (radians) at which to evaluate the PDF
+    W1 : float
+        Weight of the first component (0 < W1 < 1)
+    kappa1 : float
+        Concentration parameter of first component (≥0); larger means more concentrated
+    kappa2 : float
+        Concentration parameter of second component (≥0)
+
+    Returns:
+    --------
+    array : Probability density at each angle in x
     """
     vm1 = np.exp(kappa1 * np.cos(x)) / (2 * np.pi * i0(kappa1))
     vm2 = np.exp(kappa2 * np.cos(x)) / (2 * np.pi * i0(kappa2))
@@ -412,19 +508,25 @@ def von_mises_mixture_no_amplitudes(x, W1, kappa1, kappa2):
 
 def fit_von_mises_mixture_mle(x_data, initial_guess=(0.5, 1.0, 5.0)):
     """
-    Fit a mixture of two von Mises distributions (centered at 0) to raw angular data via MLE.
+    Fit a mixture of two von Mises distributions to angular data using maximum likelihood estimation.
 
-    Parameters
-    ----------
-    x_data : array_like
-        Sample of angles (in radians).
+    This is useful for characterizing turning angle distributions which often exhibit bimodal
+    behavior (e.g., small turns from persistent motion and large turns from reorientation events).
+
+    Parameters:
+    -----------
+    x_data : array-like
+        Sample of angles in radians
     initial_guess : tuple, optional
-        Initial guess for parameters (W1, kappa1, kappa2).
+        Initial guess for parameters (W1, kappa1, kappa2), default: (0.5, 1.0, 5.0)
 
-    Returns
-    -------
-    result : dict
-        Dictionary containing fitted parameters, optimization success, and message.
+    Returns:
+    --------
+    dict : Contains:
+        - 'params': dict with fitted W1, kappa1, kappa2
+        - 'success': bool indicating optimization success
+        - 'message': str with optimization message
+        - 'nll': float with negative log-likelihood at optimum
     """
 
     # Ensure numpy array

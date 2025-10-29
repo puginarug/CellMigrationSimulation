@@ -241,12 +241,18 @@ def create_animation(simulation, interval=100, save_path=None):
 
 def plot_cell_statistics(simulation):
     """
-    Plot basic statistics of the simulation.
-    
+    Plot comprehensive statistics of the simulation in a 2x2 grid.
+
+    Creates four subplots showing:
+    1. Mean Squared Displacement (log-log)
+    2. Velocity distribution histogram
+    3. Directional Autocorrelation Function (log-log)
+    4. Initial vs final cell positions
+
     Parameters:
     -----------
     simulation : Simulation object
-        Completed simulation
+        Completed simulation with cell trajectories
     """
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     
