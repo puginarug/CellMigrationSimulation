@@ -16,7 +16,20 @@ from visualization import plot_trajectories, create_animation, plot_cell_statist
 
 
 def load_experimental_data(filepath):
-    """Load and preprocess experimental data."""
+    """
+    Load and preprocess experimental trajectory data from CSV file.
+
+    Parameters:
+    -----------
+    filepath : str
+        Path to CSV file containing experimental data
+
+    Returns:
+    --------
+    tuple : (DataFrame, list of tracks)
+        - DataFrame with columns: track_id, step, t, x, y, v_x, v_y
+        - List of numpy arrays containing (x, y) coordinates for each track
+    """
     print(f"Loading experimental data from {filepath}...")
     
     data = pd.read_csv(filepath)
@@ -45,7 +58,18 @@ def load_experimental_data(filepath):
 
 
 def fit_velocity_distribution(data):
-    """Fit log-normal distribution to velocities."""
+    """
+    Fit log-normal distribution to experimental velocity magnitudes.
+
+    Parameters:
+    -----------
+    data : DataFrame
+        Trajectory data with v_x and v_y columns
+
+    Returns:
+    --------
+    dict : Log-normal parameters {'shape': , 'loc': , 'scale': }
+    """
     velocities = np.sqrt(data['v_x']**2 + data['v_y']**2)
     velocities = velocities.dropna()
     velocities = velocities[velocities > 0]
@@ -58,7 +82,22 @@ def fit_velocity_distribution(data):
 
 
 def run_example(experimental_data_path=None):
-    """Run a complete example simulation."""
+    """
+    Run a complete example simulation with visualization and analysis.
+
+    This function demonstrates the full workflow: loading experimental data (optional),
+    fitting velocity distributions, running simulation, analyzing results (DACF, MSD),
+    creating visualizations and animations, and saving outputs.
+
+    Parameters:
+    -----------
+    experimental_data_path : str, optional
+        Path to experimental CSV data for comparison
+
+    Returns:
+    --------
+    tuple : (Simulation object, results dictionary)
+    """
     
     print("="*60)
     print("SIMPLIFIED CELL MIGRATION SIMULATION")

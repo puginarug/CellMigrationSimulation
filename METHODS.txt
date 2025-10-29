@@ -1,0 +1,142 @@
+METHODS
+
+Cell Migration Simulation in a Stadium-Shaped Domain
+
+1. MODEL OVERVIEW
+
+We developed an agent-based computational model to simulate cell migration in a stadium-shaped microfluidic chamber with a chemotactic gradient. The model incorporates experimentally-derived velocity distributions, turning angle statistics, and cell-cell interactions to recapitulate collective cell migration behavior.
+
+2. COMPUTATIONAL DOMAIN
+
+The simulation domain consists of a vertical stadium geometry: two parallel straight walls of length L = 800 μm connected by semicircular caps of radius R = 200 μm. A vertical line source of length 400 μm positioned at the domain center generates a chemoattractant gradient. The gradient strength G(r) decays with distance r from the source according to a fourth-degree polynomial fitted to experimental measurements:
+
+    G(r) = G₀ · P(r̃)
+
+where r̃ = r/(R + L/2) is the normalized distance, G₀ is the maximum gradient strength, and P(r̃) is the polynomial function. The gradient direction at any point is computed as the unit vector pointing toward the nearest point on the line source.
+
+3. CELL AGENT MODEL
+
+3.1 Cell Properties
+Each cell agent i is characterized by:
+- Position (xᵢ, yᵢ) in the stadium domain
+- Orientation angle θᵢ ∈ [-π, π]
+- Velocity magnitude vᵢ sampled from a log-normal distribution
+- Complete trajectory history for analysis
+
+3.2 Velocity Distribution
+Cell speeds are sampled from a log-normal distribution fitted to experimental data:
+
+    v ~ LogNormal(μ, σ)
+
+where μ and σ are the shape and scale parameters determined by maximum likelihood estimation from experimental velocity measurements.
+
+3.3 Movement Models
+We implemented multiple movement modes to capture different aspects of cell migration:
+
+a) Random Walk (RW): Cells choose a random direction uniformly from [-π, π] at each time step.
+
+b) Persistent Random Walk (PRW): Cells maintain their previous direction with probability p (persistence parameter), otherwise choose a random direction.
+
+c) Biased Persistent Random Walk (BPRW): Combines persistence with chemotactic bias toward the gradient source.
+
+d) Memory-Based Movement: Cells orient based on a weighted average of past directions using temporal memory kernels:
+   - Uniform memory: Equal weights for past M time steps
+   - Exponential memory: Weights decay as w(τ) = exp(-λτ), where τ is time lag
+   - Power-law memory: Weights decay as w(τ) = (τ + 1)^(-α)
+
+3.4 Turning Angle Distribution
+For memory-based models, turning angles relative to the memory-averaged direction are sampled from a mixture of two von Mises distributions:
+
+    P(θ) = W₁·VM(θ; 0, κ₁) + (1-W₁)·VM(θ; 0, κ₂)
+
+where VM(θ; μ, κ) is the von Mises distribution with mean μ and concentration κ. Parameters W₁, κ₁, and κ₂ are fitted to experimental turning angle distributions using maximum likelihood estimation.
+
+3.5 Chemotaxis
+Cells sense the local gradient and bias their movement toward higher chemoattractant concentration. The chemotactic response is modeled as a directional bias:
+
+    Δθ_chemo = (θ_gradient - θᵢ) · S(G)
+
+where S(G) = 1 - exp(-G) is a saturation function preventing over-response at high gradients, and θ_gradient is the gradient direction.
+
+3.6 Cell-Cell Repulsion
+To prevent unrealistic cell overlap, agents experience short-range repulsion from neighbors within radius r_interact = 10 μm. The repulsive force decays linearly with distance:
+
+    F_rep(r) = (r_interact - r) / r_interact    for r < r_interact
+
+The net repulsion force is converted to a directional bias away from nearby cells.
+
+3.7 Direction Update
+At each time step, the cell's new orientation is determined by a weighted combination of:
+- Random/persistent component (weight w_rand)
+- Chemotactic bias (weight w_chemo)
+- Repulsive bias (weight w_rep)
+
+The weights sum to 1, and the final direction is computed using circular mean:
+
+    θᵢ(t+Δt) = atan2(Σ wⱼ·sin(θⱼ), Σ wⱼ·cos(θⱼ))
+
+3.8 Position Update
+The new position is computed as:
+
+    xᵢ(t+Δt) = xᵢ(t) + vᵢ·cos(θᵢ)·Δt
+    yᵢ(t+Δt) = yᵢ(t) + vᵢ·sin(θᵢ)·Δt
+
+where vᵢ is sampled from the log-normal velocity distribution at each step.
+
+3.9 Boundary Conditions
+When a cell would move outside the stadium boundary, its position is projected back to the nearest point on the boundary (no-flux boundary condition).
+
+4. SIMULATION PARAMETERS
+
+Standard simulation parameters:
+- Number of cells: 50
+- Time step: Δt = 5 minutes (matching experimental frame rate)
+- Simulation duration: 500 minutes (100 time steps)
+- Initial positions: Uniformly distributed along stadium perimeter
+- Chemotaxis strength: w_chemo = 0.0-0.5 (fitted to data)
+- Repulsion strength: w_rep = 0.2
+- Interaction radius: r_interact = 10 μm
+
+5. ANALYSIS METHODS
+
+5.1 Mean Squared Displacement (MSD)
+MSD was calculated for all cell tracks as a function of time lag τ:
+
+    MSD(τ) = ⟨[r(t+τ) - r(t)]²⟩
+
+where the average is taken over all cells and all starting times t. MSD scaling with time (MSD ∝ τ^α) indicates the type of motion: ballistic (α=2), diffusive (α=1), or subdiffusive (α<1).
+
+5.2 Directional Autocorrelation Function (DACF)
+The DACF measures persistence of cell migration direction:
+
+    DACF(τ) = ⟨v̂(t) · v̂(t+τ)⟩
+
+where v̂ is the unit velocity vector. DACF decays from 1 (perfect correlation) to 0 (no correlation) with characteristic persistence time τ_p.
+
+5.3 Velocity Autocorrelation Function (VACF)
+The VACF measures correlation of both speed and direction:
+
+    VACF(τ) = ⟨v(t) · v(t+τ)⟩
+
+5.4 Per-Position Statistics
+For experimental data from multiple microscopy fields, MSD and DACF were first calculated independently for each position, then aggregated using weighted averaging where weights equal the number of cell observations at each time lag. Standard errors reflect position-to-position variability.
+
+6. PARAMETER FITTING
+
+Model parameters were optimized using grid search to minimize the combined reduced chi-squared statistic:
+
+    χ²_total = w·χ²_DACF + (1-w)·χ²_MSD
+
+where w = 0.5 weights the DACF and MSD fits equally. The reduced chi-squared for each metric was computed as:
+
+    χ²_red = (1/ν) Σᵢ [(O_i - S_i) / σᵢ]²
+
+where O_i and S_i are observed and simulated values, σᵢ is the standard error of the mean from position-to-position variability, and ν is the number of degrees of freedom.
+
+7. IMPLEMENTATION
+
+The simulation was implemented in Python 3.9+ using NumPy for numerical operations, Pandas for data management, SciPy for statistical distributions and optimization, and Matplotlib for visualization. All code is available at [repository URL].
+
+8. STATISTICAL ANALYSIS
+
+All reported statistics (means, standard deviations, standard errors) were computed across multiple simulation replicates (n=10) with different random seeds. Experimental data statistics reflect position-to-position and cell-to-cell variability. Error bars in all figures represent standard error of the mean (SEM).
