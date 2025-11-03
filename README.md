@@ -14,7 +14,6 @@ This simulation models cell migration behavior in confined geometries, specifica
   - Persistent random walk
   - Biased persistent walk (with chemotaxis)
   - Memory-based models (uniform, exponential, power-law memory kernels)
-  - Von Mises mixture distribution for turning angles
 
 - **Cell Behaviors:**
   - Chemotaxis response to gradient fields
@@ -303,3 +302,4 @@ Contributions are welcome! Please open issues for bugs or feature requests, and 
 ## Contact
 
 For questions or feedback, please open an issue on the GitHub repository.
+
